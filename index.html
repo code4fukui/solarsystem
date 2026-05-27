@@ -222,6 +222,20 @@
       return sprite;
     }
 
+    function createDotTexture() {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext("2d");
+      const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+      gradient.addColorStop(0, "rgba(255,255,255,1)");
+      gradient.addColorStop(0.45, "rgba(255,255,255,0.85)");
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return new THREE.CanvasTexture(canvas);
+    }
+
     const isJapaneseLocale = navigator.languages
       ? navigator.languages.some((language) => language.toLowerCase().startsWith("ja"))
       : navigator.language.toLowerCase().startsWith("ja");
@@ -344,7 +358,15 @@
       asteroidPositions.push(Math.cos(a) * r, (Math.random() - 0.5) * 1.2, Math.sin(a) * r);
     }
     asteroidGeometry.setAttribute("position", new THREE.Float32BufferAttribute(asteroidPositions, 3));
-    const asteroidMaterial = new THREE.PointsMaterial({ color: 0x999999, size: 0.45, transparent: true, opacity: 0.7 });
+    const asteroidMaterial = new THREE.PointsMaterial({
+      color: 0xaaaaaa,
+      size: 0.45,
+      map: createDotTexture(),
+      transparent: true,
+      opacity: 0.75,
+      alphaTest: 0.05,
+      depthWrite: false,
+    });
     const asteroidBelt = new THREE.Points(asteroidGeometry, asteroidMaterial);
     solarSystem.add(asteroidBelt);
 
