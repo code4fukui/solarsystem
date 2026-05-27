@@ -33,3 +33,7 @@ http://localhost:8000/index.html
 WebAR requires a browser and device that support WebXR `immersive-ar`. On unsupported environments, the simulator still works as a normal 3D web page.
 
 The Real display mode is physically scaled, so planets become extremely small compared with their orbital distances.
+
+Planet data is stored in `planets.csv` and loaded with `https://code4fukui.github.io/CSV/CSV.js`.
+
+`planets.csv` is CC0 open data.
