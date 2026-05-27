@@ -34,6 +34,7 @@ WebAR requires a browser and device that support WebXR `immersive-ar`. On unsupp
 
 The Real display mode is physically scaled, so planets become extremely small compared with their orbital distances.
 
-Planet data is stored in `planets.csv` and loaded with `https://code4fukui.github.io/CSV/CSV.js`.
+Sun, planet, and Moon data is stored in `planets.csv` and loaded with `https://code4fukui.github.io/CSV/CSV.js`.
+The `parent` column describes the orbital parent body.
 
 `planets.csv` is CC0 open data.

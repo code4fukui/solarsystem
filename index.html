@@ -228,24 +228,10 @@
       ? navigator.languages.some((language) => language.toLowerCase().startsWith("ja"))
       : navigator.language.toLowerCase().startsWith("ja");
 
-    // ---- sun ----
-    const sunRadius = 9;
-    const sun = createSphere({ name: "Sun", radius: sunRadius, color: 0xffcc55, emissive: 0xffaa22 });
-    solarSystem.add(sun);
-
-    const sunLabel = createLabel(isJapaneseLocale ? "太陽" : "Sun");
-    solarSystem.add(sunLabel);
-
-    const sunGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(13, 48, 32),
-      new THREE.MeshBasicMaterial({ color: 0xffbb44, transparent: true, opacity: 0.13 })
-    );
-    solarSystem.add(sunGlow);
-
-    // ---- planets ----
-    const planetData = (await CSV.fetchJSON("./planets.csv")).map((p) => ({
+    const bodyData = (await CSV.fetchJSON("./planets.csv")).map((p) => ({
       name: p.name,
       nameJa: p.nameJa,
+      parent: p.parent,
       distance: Number(p.distance),
       realDistance: Number(p.realDistance),
       radius: Number(p.radius),
@@ -255,13 +241,27 @@
       inclination: Number(p.inclination),
     }));
 
+    const sunData = bodyData.find((p) => p.name === "Sun");
+    const planetData = bodyData.filter((p) => p.parent === "Sun");
+    const moonData = bodyData.find((p) => p.parent === "Earth");
+
+    // ---- sun ----
+    const sunRadius = sunData.radius;
+    const sun = createSphere({ name: sunData.name, radius: sunRadius, color: sunData.color, emissive: 0xffaa22 });
+    solarSystem.add(sun);
+
+    const sunLabel = createLabel(isJapaneseLocale ? sunData.nameJa : sunData.name);
+    solarSystem.add(sunLabel);
+
+    const sunGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(13, 48, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffbb44, transparent: true, opacity: 0.13 })
+    );
+    solarSystem.add(sunGlow);
+
     const planets = [];
     const realAuScale = 32;
     const earthRadiusAu = 0.0000426348;
-    const sunRadiusAu = 0.00465047;
-    const moonDeformedRadius = 0.55;
-    const moonDistance = 5.5;
-    const moonDistanceAu = 0.00257;
     const asteroidBeltDeformedMiddle = 54.5;
     const asteroidBeltRealMiddle = 2.75 * realAuScale;
     let deformed = true;
@@ -271,11 +271,11 @@
     }
 
     function getSunRadius() {
-      return sunRadiusAu * realAuScale;
+      return sunData.realRadius * getEarthRadius();
     }
 
     function getMoonRadius() {
-      return getEarthRadius() * 0.273;
+      return moonData.realRadius * getEarthRadius();
     }
 
     function getPlanetRadius(p) {
@@ -316,19 +316,25 @@
       }
 
       // Earth moon
-      if (p.name === "Earth") {
-        const moonOrbit = createOrbit(moonDistance);
+      if (p.name === moonData.parent) {
+        const moonOrbit = createOrbit(moonData.distance);
         moonOrbit.position.x = p.distance;
         group.add(moonOrbit);
 
         const moonGroup = new THREE.Group();
         moonGroup.position.x = p.distance;
-        const moon = createSphere({ name: "Moon", radius: 0.55, color: 0xcfcfcf });
-        moon.position.x = moonDistance;
+        const moon = createSphere(moonData);
+        moon.position.x = moonData.distance;
         moonGroup.add(moon);
+        const moonLabel = createLabel(isJapaneseLocale ? moonData.nameJa : moonData.name);
+        moonLabel.position.set(moonData.distance, moonData.radius + 2.5, 0);
+        moonLabel.scale.set(9, 2.25, 1);
+        moonGroup.add(moonLabel);
         group.add(moonGroup);
         group.userData.moonOrbit = moonOrbit;
         group.userData.moonGroup = moonGroup;
+        group.userData.moon = moon;
+        group.userData.moonLabel = moonLabel;
       }
 
       orbitPlane.add(group);
@@ -398,8 +404,9 @@
         if (p.group.userData.ring) p.group.userData.ring.scale.setScalar(scale);
 
         if (p.group.userData.moonGroup) {
-          const moon = p.group.userData.moonGroup.children.find((child) => child.name === "Moon");
-          if (moon) moon.scale.setScalar((deformed ? moonDeformedRadius : getMoonRadius()) / moonDeformedRadius);
+          const moonRadius = deformed ? moonData.radius : getMoonRadius();
+          p.group.userData.moon.scale.setScalar(moonRadius / moonData.radius);
+          p.group.userData.moonLabel.position.y = Math.max(moonRadius + 2.5, 2.5);
         }
       }
     }
@@ -416,7 +423,7 @@
         if (p.group.userData.ring) p.group.userData.ring.position.x = distance;
 
         if (p.group.userData.moonGroup) {
-          const moonScale = deformed ? 1 : (moonDistanceAu * realAuScale) / moonDistance;
+          const moonScale = deformed ? 1 : (moonData.realDistance * realAuScale) / moonData.distance;
           p.group.userData.moonOrbit.position.x = distance;
           p.group.userData.moonOrbit.scale.setScalar(moonScale);
           p.group.userData.moonGroup.position.x = distance;
@@ -480,7 +487,8 @@
         p.mesh.rotation.y += dt * (0.5 + 365 / p.period) * speed;
 
         if (p.group.userData.moonGroup) {
-          p.group.userData.moonGroup.rotation.y += dt * 3.2 * speed;
+          const moonAngularSpeed = (365 / moonData.period) * 0.55;
+          p.group.userData.moonGroup.rotation.y += dt * moonAngularSpeed * speed;
         }
       }
 

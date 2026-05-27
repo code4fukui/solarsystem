@@ -34,6 +34,7 @@ WebAR には WebXR `immersive-ar` に対応したブラウザと端末が必要�
 
 リアル表示モードでは物理スケールを揃えているため、惑星は軌道距離に対して非常に小さく表示されます。
 
-惑星データは `planets.csv` に分離し、`https://code4fukui.github.io/CSV/CSV.js` で読み込んでいます。
+太陽・惑星・月データは `planets.csv` に分離し、`https://code4fukui.github.io/CSV/CSV.js` で読み込んでいます。
+`parent` 列で、公転の親となる天体を表しています。
 
 `planets.csv` は CC0 のオープンデータです。
