@@ -30,6 +30,14 @@
     #info b {
       font-size: 15px;
     }
+    #info a {
+      color: rgba(255, 255, 255, 0.86);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    #info a:hover {
+      color: white;
+    }
     .nowrap {
       white-space: nowrap;
     }
@@ -72,7 +80,8 @@
 </head>
 <body>
   <div id="info">
-    <b>Simple Solar System Simulator</b><br />
+    <b>Simple Solar System Simulator</b> /
+    <a href="https://github.com/code4fukui/solarsystem" target="_blank" rel="noopener">src on GitHub</a><br />
     ドラッグ: 回転 / ホイール: ズーム<br />
     <span class="nowrap">太陽・惑星サイズと距離は表示モードを切り替え可能。</span><br />
     軌道周期の比率はざっくり現実寄り。
