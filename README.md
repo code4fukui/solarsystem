@@ -12,7 +12,7 @@ A single-file Three.js solar system simulator with desktop viewing and optional 
 - Japanese browser environments show Japanese labels for the Sun and planets.
 - Mercury and Pluto include orbital inclination.
 - WebAR-capable environments show an AR button with transparent camera background.
-- AR solar system size can be selected from 1m to 30m.
+- AR solar system size can be selected from 1m to 100m.
 
 ## Run
 
