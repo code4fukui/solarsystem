@@ -205,22 +205,18 @@
 
     function createLabel(text) {
       const canvas = document.createElement("canvas");
-      canvas.width = 256;
-      canvas.height = 64;
-      const ctx = canvas.getContext("2d", { alpha: true });
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.font = "28px system-ui";
-      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      canvas.width = 512;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.font = "bold 56px system-ui, sans-serif";
+      ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(text, 128, 32);
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2);
       const texture = new THREE.CanvasTexture(canvas);
-      const material = new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        alphaTest: 0.05,
-        depthWrite: false,
-      });
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
       const sprite = new THREE.Sprite(material);
       sprite.scale.set(18, 4.5, 1);
       return sprite;
