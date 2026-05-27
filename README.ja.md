@@ -34,7 +34,18 @@ WebAR には WebXR `immersive-ar` に対応したブラウザと端末が必要�
 
 リアル表示モードでは物理スケールを揃えているため、惑星は軌道距離に対して非常に小さく表示されます。
 
-太陽・惑星・月データは `planets.csv` に分離し、`https://code4fukui.github.io/CSV/CSV.js` で読み込んでいます。
+太陽・惑星・月データは `solarsystem.csv` に分離し、`https://code4fukui.github.io/CSV/CSV.js` で読み込んでいます。
 `parent` 列で、公転の親となる天体を表しています。
 
-`planets.csv` は CC0 のオープンデータです。
+`solarsystem.csv` は CC0 のオープンデータです。
+
+データ出典:
+
+- NASA/NSSDC Planetary Fact Sheets: https://nssdc.gsfc.nasa.gov/planetary/factsheet/
+- NASA/NSSDC Sun Fact Sheet: https://nssdc.gsfc.nasa.gov/planetary/factsheet/sunfact.html
+- NASA Moon Facts: https://science.nasa.gov/moon/facts/
+
+## ライセンス
+
+- アプリケーションコード: MIT License
+- `solarsystem.csv`: CC0 オープンデータ

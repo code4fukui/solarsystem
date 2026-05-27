@@ -85,7 +85,8 @@
     ドラッグ: 回転 / ホイール: ズーム<br />
     <span class="nowrap">太陽・惑星サイズと距離は表示モードを切り替え可能。</span><br />
     公転速度の比率は実際の公転周期に基づいています。<br />
-    <a href="./planets.csv">planets.csv</a>: CC0 open data
+    <a href="./solarsystem.csv">solarsystem.csv</a>: CC0 open data
+    / source: <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/" target="_blank" rel="noopener">NASA/NSSDC</a>
   </div>
 
   <div id="controls">
@@ -228,7 +229,7 @@
       ? navigator.languages.some((language) => language.toLowerCase().startsWith("ja"))
       : navigator.language.toLowerCase().startsWith("ja");
 
-    const bodyData = (await CSV.fetchJSON("./planets.csv")).map((p) => ({
+    const bodyData = (await CSV.fetchJSON("./solarsystem.csv")).map((p) => ({
       name: p.name,
       nameJa: p.nameJa,
       parent: p.parent,
