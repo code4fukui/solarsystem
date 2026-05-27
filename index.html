@@ -222,20 +222,6 @@
       return sprite;
     }
 
-    function createDotTexture() {
-      const canvas = document.createElement("canvas");
-      canvas.width = 64;
-      canvas.height = 64;
-      const ctx = canvas.getContext("2d");
-      const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
-      gradient.addColorStop(0, "rgba(255,255,255,1)");
-      gradient.addColorStop(0.45, "rgba(255,255,255,0.85)");
-      gradient.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      return new THREE.CanvasTexture(canvas);
-    }
-
     const isJapaneseLocale = navigator.languages
       ? navigator.languages.some((language) => language.toLowerCase().startsWith("ja"))
       : navigator.language.toLowerCase().startsWith("ja");
@@ -350,24 +336,25 @@
     }
 
     // ---- asteroid belt ----
-    const asteroidGeometry = new THREE.BufferGeometry();
-    const asteroidPositions = [];
-    for (let i = 0; i < 500; i++) {
-      const r = 51 + Math.random() * 7;
-      const a = Math.random() * Math.PI * 2;
-      asteroidPositions.push(Math.cos(a) * r, (Math.random() - 0.5) * 1.2, Math.sin(a) * r);
-    }
-    asteroidGeometry.setAttribute("position", new THREE.Float32BufferAttribute(asteroidPositions, 3));
-    const asteroidMaterial = new THREE.PointsMaterial({
+    const asteroidBelt = new THREE.Group();
+    const asteroidMaterial = new THREE.LineBasicMaterial({
       color: 0xaaaaaa,
-      size: 0.45,
-      map: createDotTexture(),
       transparent: true,
-      opacity: 0.75,
-      alphaTest: 0.05,
-      depthWrite: false,
+      opacity: 0.28,
     });
-    const asteroidBelt = new THREE.Points(asteroidGeometry, asteroidMaterial);
+    for (let i = 0; i < 80; i++) {
+      const r = 51 + Math.random() * 7;
+      const start = Math.random() * Math.PI * 2;
+      const length = 0.025 + Math.random() * 0.045;
+      const y = (Math.random() - 0.5) * 1.2;
+      const points = [];
+      for (let j = 0; j <= 3; j++) {
+        const a = start + length * (j / 3);
+        points.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+      }
+      const segmentGeometry = new THREE.BufferGeometry().setFromPoints(points);
+      asteroidBelt.add(new THREE.Line(segmentGeometry, asteroidMaterial));
+    }
     solarSystem.add(asteroidBelt);
 
     // ---- UI ----
