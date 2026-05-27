@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Solar System Simulator</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: white;
+    }
+    #info {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      font-size: 13px;
+      line-height: 1.6;
+      z-index: 10;
+      max-width: min(420px, calc(100vw - 56px));
+    }
+    #info b {
+      font-size: 15px;
+    }
+    .nowrap {
+      white-space: nowrap;
+    }
+    #controls {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      z-index: 10;
+      font-size: 13px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .control-row:first-child {
+      margin-top: 0;
+    }
+    input[type="range"] {
+      width: 220px;
+    }
+    button {
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.12);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <b>Simple Solar System Simulator</b><br />
+    ドラッグ: 回転 / ホイール: ズーム<br />
+    <span class="nowrap">太陽・惑星サイズと距離は表示モードを切り替え可能。</span><br />
+    軌道周期の比率はざっくり現実寄り。
+  </div>
+
+  <div id="controls">
+    <div class="control-row">
+      <span>speed: <span id="speedValue">1.0</span>x</span>
+      <button id="pause">pause</button>
+    </div>
+    <div class="control-row">
+      <input id="speed" type="range" min="0" max="10" step="0.1" value="1" />
+    </div>
+    <div class="control-row">
+      <span>表示モード</span>
+      <button id="viewMode">デフォルメ</button>
+    </div>
+    <div class="control-row">
+      <span>AR太陽系サイズ: <span id="arSystemSizeValue">3m</span></span>
+    </div>
+    <div class="control-row">
+      <input id="arSystemSize" type="range" min="1" max="30" step="1" value="3" />
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://esm.sh/three@0.164.1";
+    import { OrbitControls } from "https://esm.sh/three@0.164.1/examples/jsm/controls/OrbitControls.js";
+    import { ARButton } from "https://esm.sh/three@0.164.1/examples/jsm/webxr/ARButton.js";
+    //import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js";
+    //import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/controls/OrbitControls.js";
+
+    const scene = new THREE.Scene();
+    const normalBackground = new THREE.Color(0x000008);
+    scene.background = normalBackground;
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.set(0, 95, 160);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearAlpha(1);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.04;
+
+    if (navigator.xr) {
+      navigator.xr.isSessionSupported("immersive-ar").then((supported) => {
+        if (!supported) return;
+        const arButton = ARButton.createButton(renderer, {
+          optionalFeatures: ["dom-overlay"],
+          domOverlay: { root: document.body },
+        });
+        document.body.appendChild(arButton);
+      });
+    }
+
+    renderer.xr.addEventListener("sessionstart", () => {
+      scene.background = null;
+      renderer.setClearAlpha(0);
+      controls.enabled = false;
+      applyArSystemSize();
+    });
+
+    renderer.xr.addEventListener("sessionend", () => {
+      scene.background = normalBackground;
+      renderer.setClearAlpha(1);
+      controls.enabled = true;
+      solarSystem.scale.setScalar(1);
+    });
+
+    // ---- lights ----
+    const ambient = new THREE.AmbientLight(0x667799, 0.9);
+    scene.add(ambient);
+
+    const sunLight = new THREE.PointLight(0xfff0cc, 6.5, 1200, 1.1);
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0xbfd7ff, 1.2);
+    fillLight.position.set(-140, 180, 120);
+    scene.add(fillLight);
+
+    const solarSystem = new THREE.Group();
+    scene.add(solarSystem);
+
+    // ---- helpers ----
+    function createSphere({ name, radius, color, emissive = 0x000000 }) {
+      const geometry = new THREE.SphereGeometry(radius, 48, 32);
+      const isSun = name === "Sun";
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        emissive: isSun ? emissive : color,
+        emissiveIntensity: isSun ? 0.85 : 0.18,
+        roughness: 0.52,
+        metalness: 0.02,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = name;
+      return mesh;
+    }
+
+    function createOrbit(radius) {
+      const points = [];
+      const segments = 256;
+      for (let i = 0; i <= segments; i++) {
+        const a = (i / segments) * Math.PI * 2;
+        points.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius));
+      }
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.18,
+      });
+      return new THREE.LineLoop(geometry, material);
+    }
+
+    function createLabel(text) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext("2d");
+      ctx.font = "28px system-ui";
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, 128, 32);
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(18, 4.5, 1);
+      return sprite;
+    }
+
+    const isJapaneseLocale = navigator.languages
+      ? navigator.languages.some((language) => language.toLowerCase().startsWith("ja"))
+      : navigator.language.toLowerCase().startsWith("ja");
+
+    // ---- sun ----
+    const sunRadius = 9;
+    const sun = createSphere({ name: "Sun", radius: sunRadius, color: 0xffcc55, emissive: 0xffaa22 });
+    solarSystem.add(sun);
+
+    const sunLabel = createLabel(isJapaneseLocale ? "太陽" : "Sun");
+    solarSystem.add(sunLabel);
+
+    const sunGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(13, 48, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffbb44, transparent: true, opacity: 0.13 })
+    );
+    solarSystem.add(sunGlow);
+
+    // ---- planets ----
+    const planetData = [
+      // name, deformed distance, real distance in AU, deformed radius, real radius in Earth radii, color, orbitPeriodDays-ish, inclination degrees
+      { name: "Mercury", nameJa: "水星", distance: 16, realDistance: 0.387, radius: 1.1, realRadius: 0.383, color: 0xa89f94, period: 88, inclination: 7.0 },
+      { name: "Venus", nameJa: "金星", distance: 23, realDistance: 0.723, radius: 1.9, realRadius: 0.949, color: 0xd8b36a, period: 225, inclination: 0 },
+      { name: "Earth", nameJa: "地球", distance: 32, realDistance: 1.0, radius: 2.0, realRadius: 1.0, color: 0x3b82f6, period: 365, inclination: 0 },
+      { name: "Mars", nameJa: "火星", distance: 43, realDistance: 1.524, radius: 1.5, realRadius: 0.532, color: 0xc65a3a, period: 687, inclination: 0 },
+      { name: "Jupiter", nameJa: "木星", distance: 64, realDistance: 5.203, radius: 5.0, realRadius: 11.21, color: 0xd7b68a, period: 4333, inclination: 0 },
+      { name: "Saturn", nameJa: "土星", distance: 84, realDistance: 9.537, radius: 4.3, realRadius: 9.45, color: 0xe4cf9a, period: 10759, inclination: 0 },
+      { name: "Uranus", nameJa: "天王星", distance: 104, realDistance: 19.191, radius: 3.2, realRadius: 4.01, color: 0x8bd7d7, period: 30687, inclination: 0 },
+      { name: "Neptune", nameJa: "海王星", distance: 123, realDistance: 30.07, radius: 3.1, realRadius: 3.88, color: 0x4169e1, period: 60190, inclination: 0 },
+      { name: "Pluto", nameJa: "冥王星", distance: 145, realDistance: 39.482, radius: 0.8, realRadius: 0.186, color: 0xb9a28c, period: 90560, inclination: 17.2 },
+    ];
+
+    const planets = [];
+    const realAuScale = 32;
+    const earthRadiusAu = 0.0000426348;
+    const sunRadiusAu = 0.00465047;
+    const moonDeformedRadius = 0.55;
+    const moonDistance = 5.5;
+    const moonDistanceAu = 0.00257;
+    const asteroidBeltDeformedMiddle = 54.5;
+    const asteroidBeltRealMiddle = 2.75 * realAuScale;
+    let deformed = true;
+
+    function getEarthRadius() {
+      return earthRadiusAu * realAuScale;
+    }
+
+    function getSunRadius() {
+      return sunRadiusAu * realAuScale;
+    }
+
+    function getMoonRadius() {
+      return getEarthRadius() * 0.273;
+    }
+
+    function getPlanetRadius(p) {
+      return deformed ? p.radius : p.realRadius * getEarthRadius();
+    }
+
+    function getPlanetDistance(p) {
+      return deformed ? p.distance : p.realDistance * realAuScale;
+    }
+
+    for (const p of planetData) {
+      const inclination = THREE.MathUtils.degToRad(p.inclination);
+      const orbit = createOrbit(p.distance);
+      orbit.rotation.z = inclination;
+      solarSystem.add(orbit);
+
+      const orbitPlane = new THREE.Group();
+      orbitPlane.rotation.z = inclination;
+      const group = new THREE.Group();
+      const mesh = createSphere(p);
+      mesh.position.x = p.distance;
+      group.add(mesh);
+
+      const label = createLabel(isJapaneseLocale ? p.nameJa : p.name);
+      label.position.set(p.distance, p.radius + 5, 0);
+      group.add(label);
+
+      // Saturn ring
+      if (p.name === "Saturn") {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(6.2, 8.2, 96),
+          new THREE.MeshBasicMaterial({ color: 0xd8c58e, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
+        );
+        ring.rotation.x = Math.PI / 2.2;
+        ring.position.x = p.distance;
+        group.userData.ring = ring;
+        group.add(ring);
+      }
+
+      // Earth moon
+      if (p.name === "Earth") {
+        const moonOrbit = createOrbit(moonDistance);
+        moonOrbit.position.x = p.distance;
+        group.add(moonOrbit);
+
+        const moonGroup = new THREE.Group();
+        moonGroup.position.x = p.distance;
+        const moon = createSphere({ name: "Moon", radius: 0.55, color: 0xcfcfcf });
+        moon.position.x = moonDistance;
+        moonGroup.add(moon);
+        group.add(moonGroup);
+        group.userData.moonOrbit = moonOrbit;
+        group.userData.moonGroup = moonGroup;
+      }
+
+      orbitPlane.add(group);
+      solarSystem.add(orbitPlane);
+      planets.push({ ...p, orbitPlane, group, mesh, label, orbit, angle: Math.random() * Math.PI * 2 });
+    }
+
+    // ---- asteroid belt ----
+    const asteroidGeometry = new THREE.BufferGeometry();
+    const asteroidPositions = [];
+    for (let i = 0; i < 500; i++) {
+      const r = 51 + Math.random() * 7;
+      const a = Math.random() * Math.PI * 2;
+      asteroidPositions.push(Math.cos(a) * r, (Math.random() - 0.5) * 1.2, Math.sin(a) * r);
+    }
+    asteroidGeometry.setAttribute("position", new THREE.Float32BufferAttribute(asteroidPositions, 3));
+    const asteroidMaterial = new THREE.PointsMaterial({ color: 0x999999, size: 0.45, transparent: true, opacity: 0.7 });
+    const asteroidBelt = new THREE.Points(asteroidGeometry, asteroidMaterial);
+    solarSystem.add(asteroidBelt);
+
+    // ---- UI ----
+    const speedInput = document.getElementById("speed");
+    const speedValue = document.getElementById("speedValue");
+    const pauseButton = document.getElementById("pause");
+    const viewModeButton = document.getElementById("viewMode");
+    const arSystemSizeInput = document.getElementById("arSystemSize");
+    const arSystemSizeValue = document.getElementById("arSystemSizeValue");
+    let paused = false;
+
+    function getSystemDiameter() {
+      let maxRadius = deformed ? sunRadius : getSunRadius();
+      for (const p of planets) {
+        maxRadius = Math.max(maxRadius, getPlanetDistance(p) + getPlanetRadius(p));
+      }
+      return maxRadius * 2;
+    }
+
+    function formatMeters(value) {
+      if (value < 1) return `${Math.round(value * 100)}cm`;
+      if (value < 10) return `${value.toFixed(2)}m`;
+      if (value < 100) return `${value.toFixed(1)}m`;
+      return `${Math.round(value)}m`;
+    }
+
+    function applySizeMode() {
+      const currentSunRadius = deformed ? sunRadius : getSunRadius();
+      const sunScale = currentSunRadius / sunRadius;
+      sun.scale.setScalar(sunScale);
+      sunGlow.scale.setScalar(sunScale);
+      sunLabel.position.y = Math.max(currentSunRadius + 5, 5);
+
+      for (const p of planets) {
+        const radius = getPlanetRadius(p);
+        const scale = radius / p.radius;
+        p.mesh.scale.setScalar(scale);
+        p.label.position.y = Math.max(radius + 5, 5);
+
+        if (p.group.userData.ring) p.group.userData.ring.scale.setScalar(scale);
+
+        if (p.group.userData.moonGroup) {
+          const moon = p.group.userData.moonGroup.children.find((child) => child.name === "Moon");
+          if (moon) moon.scale.setScalar((deformed ? moonDeformedRadius : getMoonRadius()) / moonDeformedRadius);
+        }
+      }
+    }
+
+    function applyDistanceMode() {
+      for (const p of planets) {
+        const distance = getPlanetDistance(p);
+        const scale = distance / p.distance;
+
+        p.orbit.scale.setScalar(scale);
+        p.mesh.position.x = distance;
+        p.label.position.x = distance;
+
+        if (p.group.userData.ring) p.group.userData.ring.position.x = distance;
+
+        if (p.group.userData.moonGroup) {
+          const moonScale = deformed ? 1 : (moonDistanceAu * realAuScale) / moonDistance;
+          p.group.userData.moonOrbit.position.x = distance;
+          p.group.userData.moonOrbit.scale.setScalar(moonScale);
+          p.group.userData.moonGroup.position.x = distance;
+          p.group.userData.moonGroup.scale.setScalar(moonScale);
+        }
+      }
+
+      const asteroidScale = deformed ? 1 : asteroidBeltRealMiddle / asteroidBeltDeformedMiddle;
+      asteroidBelt.scale.setScalar(asteroidScale);
+    }
+
+    function applyDeformMode() {
+      applySizeMode();
+      applyDistanceMode();
+      viewModeButton.textContent = deformed ? "デフォルメ" : "リアル";
+      viewModeButton.setAttribute("aria-pressed", String(!deformed));
+      applyArSystemSize();
+    }
+
+    speedInput.addEventListener("input", () => {
+      speedValue.textContent = Number(speedInput.value).toFixed(1);
+    });
+
+    pauseButton.addEventListener("click", () => {
+      paused = !paused;
+      pauseButton.textContent = paused ? "resume" : "pause";
+    });
+
+    viewModeButton.addEventListener("click", () => {
+      deformed = !deformed;
+      applyDeformMode();
+    });
+
+    function applyArSystemSize() {
+      const systemSize = Number(arSystemSizeInput.value);
+      const scale = systemSize / getSystemDiameter();
+      arSystemSizeValue.textContent = formatMeters(systemSize);
+      solarSystem.scale.setScalar(renderer.xr.isPresenting ? scale : 1);
+    }
+
+    arSystemSizeInput.addEventListener("input", applyArSystemSize);
+
+    applyDeformMode();
+    applyArSystemSize();
+
+    // ---- animation ----
+    const clock = new THREE.Clock();
+
+    function animate() {
+      const dt = clock.getDelta();
+      const speed = paused ? 0 : Number(speedInput.value);
+
+      sun.rotation.y += dt * 0.2;
+      sunGlow.rotation.y -= dt * 0.08;
+
+      for (const p of planets) {
+        // Keplerっぽく、周期が短い惑星ほど速く回る
+        const angularSpeed = (365 / p.period) * 0.55;
+        p.angle += dt * angularSpeed * speed;
+        p.group.rotation.y = p.angle;
+        p.mesh.rotation.y += dt * (0.5 + 365 / p.period) * speed;
+
+        if (p.group.userData.moonGroup) {
+          p.group.userData.moonGroup.rotation.y += dt * 3.2 * speed;
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    renderer.setAnimationLoop(animate);
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
